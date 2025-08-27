@@ -1,0 +1,25 @@
+:root{
+  --paper:#fbfbfb; --ink:#0b0b0b; --line:#e6e6e6; --text:#1c1c1c; --muted:#7a7a7a; --brand:#111;
+}
+html.dark{ --paper:#0b0b0d; --ink:#f5f6f8; --line:#24262a; --text:#eceff3; --muted:#96a0aa; --brand:#eaeef2; }
+
+@layer components{
+  .card{@apply border rounded-2xl border-[color:var(--line)] bg-[var(--paper)];}
+  .btn{@apply px-3.5 py-2.5 rounded-xl border border-black/10 bg-[color:var(--brand)] text-[color:var(--paper)] shadow-sm transition-[transform,box-shadow] duration-200 will-change-transform;}
+  .btn:hover{@apply -translate-y-0.5 shadow-lg;}
+  .btn-sub{@apply px-3 py-2 rounded-lg border border-[color:var(--line)] bg-transparent;}
+  .chip{@apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[color:var(--line)] text-xs text-[color:var(--muted)] bg-[var(--paper)] cursor-pointer;}
+}
+@layer utilities{
+  @keyframes float{0%{transform:translateY(0)}50%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+  @keyframes fadeSlide{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
+  @keyframes inkPop{0%{transform:scale(.95); filter:blur(6px); opacity:0} 100%{transform:scale(1); filter:blur(0); opacity:1}}
+  @keyframes tiltWiggle{0%,100%{transform:rotateX(0) rotateY(0)}50%{transform:rotateX(2deg) rotateY(-2deg)}}
+
+  .animate-float{animation:float 9s ease-in-out infinite;}
+  .animate-fadeslide{animation:fadeSlide .25s ease;}
+  .animate-ink{animation:inkPop .5s ease;}
+  .animate-tilt{animation:tiltWiggle 6s ease-in-out infinite; transform-style:preserve-3d;}
+  .press-3d{@apply transition-transform duration-150; transform-style:preserve-3d;}
+  .press-3d:hover{transform:translateZ(2px) rotateX(1deg) rotateY(-1deg);}
+}
