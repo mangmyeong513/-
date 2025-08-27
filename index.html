@@ -1,0 +1,410 @@
+<!doctype html>
+
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OVRA – 블랙톤 커뮤니티 (확장판)</title>
+    <!-- Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root{--bg:#0b0b0d;--panel:#111215;--tc:#eeeeee;--sub:#9aa0a6;--accent:#5bd3ff;--accent2:#aee9ff}
+      @keyframes float {0%{transform:translateY(0)}50%{transform:translateY(-5px)}100%{transform:translateY(0)}}
+      .animate-float{animation:float 6s ease-in-out infinite}
+      .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .line-clamp-4{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+    </style>
+    <!-- Minimal manifest + SW (Blob 방식) 생성 -->
+    <script>
+      // manifest 생성
+      const manifest = {
+        name: "OVRA – 블랙톤 커뮤니티",
+        short_name: "OVRA",
+        start_url: ".",
+        display: "standalone",
+        background_color: "#0b0b0d",
+        theme_color: "#0b0b0d",
+        icons: [
+          { src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' fill='%230b0b0d'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='120' fill='%23aee9ff'>O</text></svg>", sizes: "256x256", type: "image/svg+xml" }
+        ]
+      };
+      const mblob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+      const mlink = document.createElement('link');
+      mlink.rel = 'manifest';
+      mlink.href = URL.createObjectURL(mblob);
+      document.head.appendChild(mlink);// Service Worker 코드 생성
+  const swCode = `
+    const CACHE = 'ovra-cache-v1';
+    self.addEventListener('install', (e)=>{
+      e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['./'])));
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', (e)=>{e.waitUntil(self.clients.claim())});
+    self.addEventListener('fetch', (e)=>{
+      const req = e.request;
+      if(req.method !== 'GET') return; // POST 등은 통과
+      e.respondWith(
+        caches.match(req).then(res=> res || fetch(req).then(r=>{
+          const copy = r.clone();
+          caches.open(CACHE).then(c=> c.put(req, copy)).catch(()=>{});
+          return r;
+        }).catch(()=>caches.match('./')))
+      );
+    });
+  `;
+  if('serviceWorker' in navigator){
+    const swBlob = new Blob([swCode], {type:'text/javascript'});
+    const swURL = URL.createObjectURL(swBlob);
+    window.addEventListener('load', ()=> navigator.serviceWorker.register(swURL));
+  }
+</script>
+
+  </head>
+  <body class="min-h-screen bg-[--bg] text-[--tc]">
+    <div id="root"></div><!-- React 18 UMD + Babel for JSX in one file -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+  // -------------------------------------------------------------
+  // Utils & Storage
+  // -------------------------------------------------------------
+  const COLORS={bg:"#0b0b0d",panel:"#111215",text:"#eee",sub:"#9aa0a6",accent:"#5bd3ff",accent2:"#aee9ff"};
+  const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+  const load=(k,def)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):def}catch(e){return def}};
+  const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+  const randomNick=()=>{const adj=["잔물결","은하","심야","흐림","모래","새벽","철석","어둠","흑운"], ani=["고양이","수달","참새","고래","너구리"];return adj[Math.floor(Math.random()*adj.length)]+ani[Math.floor(Math.random()*ani.length)]+"#"+Math.floor(100+Math.random()*900)};
+  const DB_KEY='ovra_posts_v2';
+  const NICK_KEY='ovra_nick_v2';
+  const LIKE_KEY=(nick)=>`ovra_like_${nick}`;
+  const BM_KEY=(nick)=>`ovra_bm_${nick}`;
+
+  // naive tagger
+  const STOP=["그리고","그래서","하지만","그러나","나는","우리는","너는","오늘","지금","정말","약간","너무","진짜","그냥","근데","하면","하려고","해서","하다","했다","하는","했더니","있다","없다","같다","보다"]; 
+  const MAP={"우울":"위로","슬퍼":"위로","힘들":"위로","불안":"위로","행복":"기쁨","기뻐":"기쁨","시험":"수능","수능":"수능","공부":"공부","과제":"공부","친구":"친구","연애":"연애","사랑":"연애","게임":"게임","그림":"그림","음악":"음악","학교":"학교","엄마":"가족","아빠":"가족","운동":"운동","비":"날씨","더워":"날씨","추워":"날씨"};
+  function tokenize(t){return (t||"").toLowerCase().replace(/[\n.,!?~\-(){}'";:]/g," ").split(/\s+/).filter(Boolean)}
+  function suggestTags(text,extra=""){const words=[...tokenize(text),...tokenize(extra)];const counts={};for(const w of words){if(w.length<2||STOP.includes(w)) continue;const key=MAP[w]||w;counts[key]=(counts[key]||0)+1}let arr=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k])=>k);const prefer=["위로","기쁨","수능","공부","친구","연애","게임","그림","음악","학교","가족","운동","날씨"];const chosen=[];for(const p of prefer){if(arr.includes(p)) chosen.push(p)}for(const a of arr){if(!chosen.includes(a)) chosen.push(a)}return chosen.slice(0,3)}
+
+  // image compressor to dataURL <=1200px wide
+  async function fileToDataURL(file){
+    const bitmap = await createImageBitmap(file);
+    const maxW = 1200;
+    const scale = Math.min(1, maxW/bitmap.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width*scale);
+    canvas.height = Math.round(bitmap.height*scale);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.8);
+  }
+
+  // -------------------------------------------------------------
+  // Decorative (low-key)
+  // -------------------------------------------------------------
+  const Splash = ({className=""}) => (
+    <svg viewBox="0 0 200 120" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="sG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={COLORS.accent2}/>
+          <stop offset="100%" stopColor={COLORS.accent}/>
+        </linearGradient>
+      </defs>
+      <path d="M10,90 C25,20 80,5 100,40 C120,10 180,15 190,70 C140,75 120,95 100,110 C80,100 40,95 10,90 Z" fill="url(#sG)" opacity=".18"/>
+    </svg>
+  );
+
+  const InkDot = ()=> <div className="w-8 h-8 rounded-full bg-black/60 blur-sm"/>
+
+  // -------------------------------------------------------------
+  // Components
+  // -------------------------------------------------------------
+  const Header=({nick,onSearch,onNav,view})=> (
+    <header className="sticky top-0 z-40 bg-black/40 backdrop-blur border-b border-white/10">
+      <div className="mx-auto max-w-3xl px-4 py-3 flex items-center gap-3 justify-between">
+        <div className="flex items-center gap-2">
+          <div className="relative w-7 h-7"><Splash className="absolute -top-2 -left-1 w-12"/></div>
+          <h1 className="text-lg font-bold tracking-wide">OVRA</h1>
+        </div>
+        <input onChange={e=>onSearch(e.target.value)} placeholder="검색…" className="flex-1 max-w-md rounded-xl px-3 py-2 bg-white/5 border border-white/10 text-[--tc] placeholder-white/40 outline-none focus:ring-2 ring-cyan-300/30"/>
+        <nav className="flex items-center gap-3 text-sm text-[--sub]">
+          <button className={"hover:text-white "+(view.mode==='feed'?"text-white":"")} onClick={()=>onNav({mode:'feed'})}>피드</button>
+          <button className={"hover:text-white "+(view.mode==='profile'&&view.who==='me'?"text-white":"")} onClick={()=>onNav({mode:'profile',who:'me'})}>내 프로필</button>
+          <button className={"hover:text-white "+(view.mode==='bookmarks'?"text-white":"")} onClick={()=>onNav({mode:'bookmarks'})}>북마크</button>
+        </nav>
+        <span className="text-xs text-[--sub]">{nick}</span>
+      </div>
+    </header>
+  );
+
+  const Tag=({children})=> (<span className="px-2 py-1 rounded-full text-[10px] tracking-wide bg-white/5 border border-white/10 text-[--sub]">#{children}</span>);
+
+  const Confirm = ({open, text, onYes, onNo}) => open? (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/50" onClick={onNo}></div>
+      <div className="absolute inset-0 m-auto max-w-sm h-fit rounded-2xl bg-[--panel] border border-white/10 p-4">
+        <p className="mb-4 text-sm text-[--sub]">{text}</p>
+        <div className="flex justify-end gap-2">
+          <button className="px-3 py-1 rounded bg-white/5" onClick={onNo}>취소</button>
+          <button className="px-3 py-1 rounded bg-red-500/80 text-black" onClick={onYes}>확인</button>
+        </div>
+      </div>
+    </div>
+  ):null;
+
+  const PostCard=({me,post,onQuote,onOpen,onLike,onBookmark,onDelete,onReport,liked,bm})=>{
+    const date=new Date(post.ts).toLocaleString();
+    return (
+      <article className="relative overflow-hidden rounded-2xl border border-white/10 bg-[--panel] shadow-[0_10px_30px_-15px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.03)]">
+        <div className="relative p-4 md:p-5 grid grid-cols-[auto,1fr] gap-3">
+          <div className="mt-1 h-10 w-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[--sub]">{post.author[0]}</div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs text-[--sub]">
+              <button className="font-semibold text-[--tc] hover:underline" onClick={()=>onOpen(post,{profileOf:post.author})}>{post.author}</button>
+              <span>·</span>
+              <span>{date}</span>
+            </div>
+            <h3 className="mt-1 font-semibold" onClick={()=>onOpen(post)}><button className="hover:underline">{post.title||"(제목 없음)"}</button></h3>
+            <p className="mt-1 leading-relaxed line-clamp-4">{post.body}</p>
+            {post.image && <img src={post.image} alt="post" className="mt-3 rounded-xl max-h-80 w-full object-cover"/>}
+            {post.quoteOf && (
+              <div className="mt-3 p-3 rounded-xl bg-black/30 border border-white/10">
+                <div className="text-[10px] text-[--sub] mb-1">옴표</div>
+                <div className="text-sm font-semibold">{post.quoteOf.title}</div>
+                <div className="text-xs text-[--sub]">{post.quoteOf.author}</div>
+                <div className="text-sm">{post.quoteOf.body}</div>
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">{post.tags.map(t=> <Tag key={t}>{t}</Tag>)}</div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-white/10 px-3 md:px-4 py-2 text-[--sub] text-sm">
+          <div className="flex gap-4 items-center">
+            <button className={"hover:text-white "+(liked?"text-white":"")} onClick={()=>onLike(post.id)}>{liked?"♥":"♡"} {post.likes||0}</button>
+            <button className={"hover:text-white "+(bm?"text-white":"")} onClick={()=>onBookmark(post.id)}>{bm?"★":"☆"} 북마크</button>
+            <button className="hover:text-white" onClick={()=>onOpen(post)}>댓글 {post.comments.length}</button>
+            <button className="hover:text-white" onClick={()=>onQuote(post)}>옴표</button>
+          </div>
+          <div className="flex gap-3 items-center">
+            {me===post.author && <button className="hover:text-white" onClick={()=>onDelete(post.id)}>삭제</button>}
+            <button className="hover:text-white" onClick={()=>onReport(post.id)}>신고{post.reports?`(${post.reports})`:''}</button>
+          </div>
+        </div>
+      </article>
+    )
+  };
+
+  const Composer=({nick,quoteTarget,onCancelQuote,onPost})=>{
+    const [title,setTitle]=React.useState("");
+    const [body,setBody]=React.useState("");
+    const [tags,setTags]=React.useState([]);
+    const [tagInput,setTagInput]=React.useState("");
+    const [img,setImg]=React.useState(null);
+    React.useEffect(()=>{const s=suggestTags(title+" "+body);setTags(s)},[title,body]);
+    const addTag=()=>{if(tagInput&& !tags.includes(tagInput)) setTags([...tags,tagInput]);setTagInput("")}
+    const submit=()=>{if(!body.trim()&&!title.trim()&&!img) return;onPost({title,body,tags,quoteTarget,image:img});setTitle("");setBody("");setTags([]);setImg(null)}
+    const onFile=async(e)=>{const f=e.target.files?.[0];if(!f) return;const url=await fileToDataURL(f);setImg(url)}
+    return (
+      <div className="rounded-2xl border border-white/10 bg-[--panel] p-4 md:p-5 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.6)]">
+        <div className="flex gap-3">
+          <div className="h-10 w-10 shrink-0 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[--sub]">{nick[0]}</div>
+          <div className="flex-1">
+            <input value={title} onChange={e=>setTitle(e.target.value.slice(0,60))} placeholder="제목 (최대 60자)" className="w-full mb-2 rounded-xl px-3 py-2 bg-white/5 border border-white/10 text-[--tc] placeholder-white/40 outline-none focus:ring-2 ring-cyan-300/20"/>
+            <textarea value={body} onChange={e=>setBody(e.target.value.slice(0,300))} placeholder="한두 줄로 적어보세요… (최대 300자)" className="w-full min-h-24 resize-y rounded-2xl bg-white/5 backdrop-blur-sm placeholder-white/40 text-[--tc] p-4 outline-none focus:ring-2 ring-cyan-300/20 border border-white/10"/>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              {tags.map(t=> <Tag key={t}>{t}</Tag>)}
+              <input value={tagInput} onChange={e=>setTagInput(e.target.value)} placeholder="#태그추가" className="rounded-xl px-2 py-1 bg-white/5 border border-white/10 text-[--tc] placeholder-white/40 outline-none"/>
+              <button className="text-xs text-[--sub]" onClick={addTag}>추가</button>
+              <label className="ml-auto text-xs cursor-pointer text-[--sub] hover:text-white">
+                <input type="file" accept="image/*" className="hidden" onChange={onFile}/>
+                이미지 업로드
+              </label>
+            </div>
+            {img && <div className="mt-3 relative"><img src={img} alt="preview" className="rounded-xl max-h-80 w-full object-cover"/><button className="absolute top-2 right-2 text-xs bg-black/60 px-2 py-1 rounded" onClick={()=>setImg(null)}>제거</button></div>}
+            {quoteTarget && (
+              <div className="mt-3 p-3 rounded-xl bg-black/30 border border-white/10">
+                <div className="text-[10px] text-[--sub] mb-1">옴표 대상</div>
+                <div className="font-semibold">{quoteTarget.title}</div>
+                <div className="text-xs text-[--sub]">{quoteTarget.author}</div>
+                <div>{quoteTarget.body}</div>
+                <button className="mt-2 text-xs text-[--sub] hover:underline" onClick={onCancelQuote}>옴표 취소</button>
+              </div>
+            )}
+            <div className="mt-3 flex justify-end"><button className="px-4 py-2 rounded-xl font-semibold bg-white text-black hover:bg-gray-200" onClick={submit}>게시</button></div>
+          </div>
+        </div>
+      </div>
+    )
+  };
+
+  const PostDetail=({me,post,onClose,onAddComment,onDeleteComment,onQuote})=>{
+    const [txt,setTxt]=React.useState("");
+    const submit=()=>{if(!txt.trim()) return;onAddComment(post.id,txt);setTxt("")};
+    return (
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <button className="text-[--sub] hover:text-white" onClick={onClose}>닫기</button>
+          <h3 className="font-semibold">상세 보기</h3>
+        </div>
+        <div className="space-y-3 max-h-[65vh] overflow-auto pr-1">
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+            <div className="text-xs text-[--sub] mb-1">{post.author} · {new Date(post.ts).toLocaleString()}</div>
+            <div className="font-semibold">{post.title}</div>
+            <p className="mt-1">{post.body}</p>
+            {post.image && <img src={post.image} className="mt-2 rounded-lg max-h-80 w-full object-cover"/>}
+            <div className="mt-2 flex gap-2 flex-wrap">{post.tags.map(t=> <Tag key={t}>{t}</Tag>)}</div>
+            <div className="mt-2 flex gap-3 text-sm text-[--sub]">
+              <button className="hover:text-white" onClick={()=>onQuote(post)}>옴표</button>
+            </div>
+          </div>
+
+          <div className="text-sm text-[--sub]">댓글 {post.comments.length}</div>
+          {post.comments.map(c=> (
+            <div key={c.id} className="p-3 rounded-xl bg-[--panel] border border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-[--sub]">{c.author} · {new Date(c.ts).toLocaleString()}</div>
+                <div className="text-xs text-[--sub] flex gap-2">
+                  {me===c.author && <button className="hover:text-white" onClick={()=>onDeleteComment(post.id,c.id)}>삭제</button>}
+                  <button className="hover:text-white" onClick={()=>alert('신고가 접수되었습니다 (데모)')}>신고</button>
+                </div>
+              </div>
+              <div className="mt-1">{c.text}</div>
+            </div>
+          ))}
+          {post.comments.length===0 && <div className="text-[--sub] text-sm">아직 댓글이 없어요.</div>}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <input value={txt} onChange={e=>setTxt(e.target.value.slice(0,160))} placeholder="한 줄 댓글" className="flex-1 rounded-xl px-3 py-2 bg-white/5 border border-white/10 placeholder-white/40 outline-none focus:ring-2 ring-cyan-300/20"/>
+          <button className="px-3 py-2 rounded-xl font-semibold bg-white text-black" onClick={submit}>등록</button>
+        </div>
+      </div>
+    )
+  };
+
+  // -------------------------------------------------------------
+  // App (feed, profile, bookmarks, infinite scroll)
+  // -------------------------------------------------------------
+  function App(){
+    const [nick,setNick]=React.useState(load(NICK_KEY, randomNick()));
+    const [posts,setPosts]=React.useState(load(DB_KEY, []));
+    const [search,setSearch]=React.useState("");
+    const [quoteTarget,setQuoteTarget]=React.useState(null);
+    const [detail,setDetail]=React.useState(null);
+    const [view,setView]=React.useState({mode:'feed'}); // {mode:'profile', who:'me'|name} | {mode:'bookmarks'}
+    const [visible,setVisible]=React.useState(6);
+    const likesSetRef=React.useRef(new Set(load(LIKE_KEY(nick),[])));
+    const bmSetRef=React.useRef(new Set(load(BM_KEY(nick),[])));
+    const [confirm,setConfirm]=React.useState({open:false,action:null,text:''});
+
+    React.useEffect(()=>save(NICK_KEY,nick),[nick]);
+    React.useEffect(()=>save(DB_KEY,posts),[posts]);
+    React.useEffect(()=>save(LIKE_KEY(nick),Array.from(likesSetRef.current)),[nick,posts]);
+    React.useEffect(()=>save(BM_KEY(nick),Array.from(bmSetRef.current)),[nick,posts]);
+
+    // infinite scroll
+    React.useEffect(()=>{
+      const onScroll=()=>{
+        if((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200){
+          setVisible(v=>Math.min(v+5, filtered().length));
+        }
+      };
+      window.addEventListener('scroll',onScroll);
+      return ()=>window.removeEventListener('scroll',onScroll);
+    },[posts,search,view]);
+
+    // seed if empty
+    React.useEffect(()=>{if(posts.length===0){const seed=[
+      {id:uid(),title:"환영합니다",body:"블랙톤으로 눌러앉은 작은 물결. 가벼운 한 줄부터 시작해요.",tags:["공지","업데이트"],author:"시스템",ts:Date.now()-100000,likes:3,comments:[],reports:0},
+      {id:uid(),title:"밤산책",body:"가로등 밑 고양이가 그림자를 빗질하더라.",tags:["잡담","기록"],author:"은하고양이#101",ts:Date.now()-90000,likes:0,comments:[],reports:0},
+    ];setPosts(seed)}},[]);
+
+    function createPost({title,body,tags,quoteTarget,image}){
+      const base={id:uid(),title,body,tags,author:nick,ts:Date.now(),likes:0,comments:[],reports:0};
+      if(quoteTarget){base.quoteOf={id:quoteTarget.id,title:quoteTarget.title,author:quoteTarget.author,body:quoteTarget.body}}
+      if(image) base.image=image;
+      setPosts([base,...posts]);setQuoteTarget(null);
+      window.scrollTo({top:0,behavior:'smooth'});setVisible(v=>Math.max(v,6));
+    }
+    function addComment(postId,text){setPosts(ps=>ps.map(p=>p.id===postId?{...p,comments:[...p.comments,{id:uid(),author:nick,text,ts:Date.now()}]}:p))}
+    function deleteComment(postId,commentId){setPosts(ps=>ps.map(p=>p.id===postId?{...p,comments:p.comments.filter(c=>c.id!==commentId)}:p))}
+    function like(postId){const s=likesSetRef.current;if(s.has(postId)){s.delete(postId);setPosts(ps=>ps.map(p=>p.id===postId?{...p,likes:Math.max(0,(p.likes||0)-1)}:p))}else{s.add(postId);setPosts(ps=>ps.map(p=>p.id===postId?{...p,likes:(p.likes||0)+1}:p))}}
+    function bookmark(postId){const s=bmSetRef.current; if(s.has(postId)) s.delete(postId); else s.add(postId); setView(v=>({...v}));}
+    function del(postId){setConfirm({open:true, text:'정말로 이 게시글을 삭제할까요?', action:()=>{setPosts(ps=>ps.filter(p=>p.id!==postId)); setConfirm({open:false})}})}
+    function report(postId){setPosts(ps=>ps.map(p=>p.id===postId?{...p,reports:(p.reports||0)+1}:p));alert('신고가 접수되었습니다 (데모)')}
+
+    const navigate=(v)=>{setView(v);setVisible(6);window.scrollTo({top:0})}
+
+    function filtered(){
+      let list = posts.slice();
+      if(view.mode==='profile' && view.who){const who = view.who==='me'?nick:view.who;list=list.filter(p=>p.author===who)}
+      if(view.mode==='bookmarks'){const s=bmSetRef.current;list=list.filter(p=>s.has(p.id))}
+      if(search.trim()){const key=search.toLowerCase();list=list.filter(p=>[p.title,p.body,p.author,...p.tags].join(' ').toLowerCase().includes(key))}
+      return list;
+    }
+
+    const list = filtered();
+    const me = nick;
+
+    return (
+      <div className="min-h-screen" style={{
+        background:`radial-gradient(800px_400px_at_15%_-10%, rgba(174,233,255,0.08), transparent 60%), radial-gradient(900px_500px_at_95%_0%, rgba(91,211,255,0.06), transparent 60%), ${COLORS.bg}`
+      }}>
+        <Header nick={nick} onSearch={setSearch} onNav={navigate} view={view}/>
+
+        <main className="mx-auto max-w-3xl px-4 py-6 space-y-6">
+          <div className="flex items-center justify-between text-xs text-[--sub]">
+            <div className="flex items-center gap-2">
+              <button className="px-2 py-1 rounded bg-white/5 border border-white/10" onClick={()=>{const n=randomNick();setNick(n)}}>닉네임 변경</button>
+              {view.mode==='profile' && <span>프로필: {view.who==='me'?nick:view.who}</span>}
+              {view.mode==='bookmarks' && <span>북마크</span>}
+            </div>
+          </div>
+
+          <Composer nick={nick} quoteTarget={quoteTarget} onCancelQuote={()=>setQuoteTarget(null)} onPost={createPost}/>
+
+          {list.length===0 && <div className="text-center text-[--sub]">결과가 없어요.</div>}
+          <div className="space-y-6">
+            {list.slice(0,visible).map(p=> (
+              <PostCard key={p.id}
+                me={me}
+                post={p}
+                liked={likesSetRef.current.has(p.id)}
+                bm={bmSetRef.current.has(p.id)}
+                onLike={like}
+                onBookmark={bookmark}
+                onQuote={setQuoteTarget}
+                onOpen={(post,opt)=>{ if(opt?.profileOf){navigate({mode:'profile', who: opt.profileOf}); return;} setDetail(post); }}
+                onDelete={(id)=>{ if(me!==p.author) return; del(id); }}
+                onReport={report}
+              />
+            ))}
+          </div>
+
+          {visible<list.length && <div className="text-center text-[--sub]">더 불러오는 중… 스크롤을 내려주세요</div>}
+        </main>
+
+        <footer className="mx-auto max-w-3xl px-4 py-10 text-center text-xs text-[--sub]">
+          <p>© ${new Date().getFullYear()} OVRA · 블랙톤 데모 · PWA 지원</p>
+        </footer>
+
+        <Confirm open={confirm.open} text={confirm.text} onNo={()=>setConfirm({open:false})} onYes={()=>{confirm.action?.()}}/>
+
+        {/* 상세/댓글 모달 */}
+        {detail && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/50" onClick={()=>setDetail(null)}></div>
+            <div className="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-[85vh] max-h-[92vh] overflow-auto mx-2 md:mx-auto md:max-w-2xl rounded-2xl bg-[--panel] border border-white/10 p-4">
+              <PostDetail me={me} post={detail} onClose={()=>setDetail(null)} onAddComment={addComment} onDeleteComment={deleteComment} onQuote={(p)=>{setQuoteTarget(p);setDetail(null)}}/>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const root=ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<App/>);
+</script>
+
+  </body>
+</html>
