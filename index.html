@@ -337,35 +337,54 @@
             <div className="pointer-events-none fixed right-2 top-24 w-28 opacity-50"><InkCat mood={1} alpha={0.18}/></div>
             <div className="pointer-events-none fixed left-0 bottom-10 w-40 opacity-40"><InkCat mood={3} alpha={0.12}/></div>
 
-            <main className="mx-auto max-w-3xl px-4 py-6 space-y-6">
-              <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-                <div className="flex items-center gap-2">
+            <main className="mx-auto md:max-w-5xl max-w-3xl px-4 py-6 space-y-6 md:space-y-0 md:grid md:grid-cols-3 md:gap-6">
+              {/* 좌측 사이드(데스크탑): 작성창 고정 */}
+              <aside className="hidden md:block md:col-span-1">
+                <div className="sticky top-20 space-y-4">
+                  <div className="text-xs text-[var(--muted)] mb-2 flex items-center justify-between">
+                    <span>프로필: {view.mode==='profile'? (view.who==='me'?nick:view.who) : '—'}</span>
+                    <button className="btn-sub" onClick={()=>setNick(randomNick())}>닉네임 변경</button>
+                  </div>
+                  <Composer nick={nick} quoteTarget={quote} onCancelQuote={()=>setQuote(null)} onPost={push}/>
+                </div>
+              </aside>
+
+              {/* 본문 피드 영역 */}
+              <section className="md:col-span-2 space-y-6">
+                {/* 모바일 상단 툴바 */}
+                <div className="flex md:hidden items-center justify-between text-xs text-[var(--muted)]">
                   <button className="btn-sub" onClick={()=>setNick(randomNick())}>닉네임 변경</button>
                   {view.mode==='profile' && <span>프로필: {view.who==='me'?nick:view.who}</span>}
                   {view.mode==='bookmarks' && <span>북마크</span>}
                 </div>
-              </div>
 
-              <Composer nick={nick} quoteTarget={quote} onCancelQuote={()=>setQuote(null)} onPost={push}/>
+                {/* 모바일: 작성창은 피드 위에 노출 */}
+                <div className="md:hidden">
+                  <Composer nick={nick} quoteTarget={quote} onCancelQuote={()=>setQuote(null)} onPost={push}/>
+                </div>
 
-              {list.length===0 && <div className="text-center text-[var(--muted)]">결과가 없어요.</div>}
-              <div className="space-y-5">
-                {list.slice(0,visible).map(p=> (
-                  <PostCard key={p.id}
-                    post={p} me={nick}
-                    liked={p.likedBy.includes(nick)}
-                    bm={p.bookmarkedBy.includes(nick)}
-                    onOpen={setDetail}
-                    onQuote={setQuote}
-                    onLike={like}
-                    onBookmark={bookmark}
-                    onAuthor={openAuthor}
-                    onDelete={del}
-                    onReport={report}
-                  />
-                ))}
-              </div>
-              {visible<list.length && <div className="text-center text-[var(--muted)]">스크롤하면 더 불러와요…</div>}
+                {list.length===0 && <div className="text-center text-[var(--muted)]">결과가 없어요.</div>}
+
+                {/* 카드 밀도: 데스크탑은 조금 더 조밀 */}
+                <div className="space-y-4 md:space-y-3">
+                  {list.slice(0,visible).map(p=> (
+                    <PostCard key={p.id}
+                      post={p} me={nick}
+                      liked={p.likedBy.includes(nick)}
+                      bm={p.bookmarkedBy.includes(nick)}
+                      onOpen={setDetail}
+                      onQuote={setQuote}
+                      onLike={like}
+                      onBookmark={bookmark}
+                      onAuthor={openAuthor}
+                      onDelete={del}
+                      onReport={report}
+                    />
+                  ))}
+                </div>
+
+                {visible<list.length && <div className="text-center text-[var(--muted)]">스크롤하면 더 불러와요…</div>}
+              </section>
             </main>
 
             <footer className="mx-auto max-w-3xl px-4 py-10 text-center text-xs text-[var(--muted)]">© ${new Date().getFullYear()} OVRA · ink & paper</footer>
