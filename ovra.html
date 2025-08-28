@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="ko" class="scroll-smooth">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OVRA – 잉크고양이 커뮤니티 (단일 HTML)</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { darkMode: 'class' };
+    </script>
+
+    <style>
+      :root{
+        --paper:#fbfbfb; --ink:#0b0b0b; --text:#1b1b1b; --muted:#7a7a7a; --line:#e7e7e7; --brand:#111;
+      }
+      html.dark{
+        --paper:#0b0b0e; --ink:#f4f6f8; --text:#e9eef2; --muted:#93a1ad; --line:#24272c; --brand:#e8edf2;
+      }
+
+      .card{ border:1px solid var(--line); background:var(--paper); border-radius:1.1rem; }
+      .chip{ display:inline-flex; align-items:center; gap:.4rem; padding:.28rem .62rem; border-radius:999px; border:1px solid var(--line); background:var(--paper); color:var(--muted); font-size:.74rem; }
+      .btn{ padding:.55rem .9rem; border-radius:.9rem; background:var(--brand); color:#fff; border:1px solid #00000012; transition:transform .15s, box-shadow .15s; }
+      .btn:hover{ transform:translateY(-1px); box-shadow:0 10px 18px rgba(0,0,0,.08); }
+      .btn-sub{ padding:.5rem .8rem; border-radius:.8rem; background:transparent; color:var(--text); border:1px solid var(--line); }
+      .line-clamp-3{ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+
+      /* Animations & 3D */
+      @keyframes float{0%{transform:translateY(0)}50%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+      .animate-float{animation:float 8s ease-in-out infinite}
+      @keyframes fadeSlide{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
+      .animate-fadeslide{animation:fadeSlide .25s ease both}
+      @keyframes inkPop{0%{transform:scale(.96); filter:blur(6px); opacity:0}100%{transform:scale(1); filter:blur(0); opacity:1}}
+      .animate-ink{animation:inkPop .5s ease both}
+      .press-3d{transform-style:preserve-3d; transition:transform .15s}
+      .press-3d:hover{transform:translateZ(2px) rotateX(.8deg) rotateY(-.8deg)}
+
+      /* Small helpers */
+      .shadow-ink{ box-shadow:0 10px 30px rgba(0,0,0,.05); }
+    </style>
+  </head>
+
+  <body class="min-h-screen bg-[var(--paper)] text-[var(--text)] antialiased">
+    <div id="root"></div>
+
+    <!-- React UMD + Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+      // =============== SVG 데코 ===============
+      const InkCat = ({ className="", mood=0, alpha=.85 })=>{
+        const poses=[
+          "M50 70 C40 80 30 95 35 105 C55 120 110 120 130 105 C140 95 130 80 120 70 C130 40 115 30 100 30 C85 30 70 40 75 58 C60 58 55 60 50 70 Z",
+          "M55 95 C45 105 45 115 65 120 C80 124 120 124 135 116 C145 110 145 98 130 92 C138 80 130 64 110 64 C95 64 85 68 82 76 C75 72 64 78 60 86 Z",
+          "M40 90 C30 100 30 112 48 120 C80 132 130 124 150 110 C160 100 158 88 142 84 C150 70 140 55 118 58 C98 61 90 70 88 78 C80 74 60 76 52 84 Z",
+          "M60 78 C48 90 48 106 66 114 C88 124 128 124 146 112 C158 104 154 86 136 84 C142 70 130 56 110 58 C92 60 80 70 78 78 C72 74 64 74 60 78 Z",
+        ];
+        return (
+          <svg viewBox="0 0 180 140" className={className} aria-hidden>
+            <defs>
+              <filter id="inkBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>
+              <radialGradient id="inkSoft" cx="50%" cy="50%" r="60%"><stop offset="0%" stopColor="#171717"/><stop offset="100%" stopColor="#0b0b0b"/></radialGradient>
+            </defs>
+            <path d="M20 110 C40 120 60 130 80 120 C100 110 95 95 85 92" stroke="#0b0b0b" strokeWidth="18" strokeLinecap="round" filter="url(#inkBlur)" opacity={alpha}/>
+            <path d={poses[mood%poses.length]} fill="url(#inkSoft)" filter="url(#inkBlur)" opacity={alpha}/>
+            <path d="M85 40 L95 20 L105 40 Z" fill="#0b0b0b" filter="url(#inkBlur)" opacity={alpha}/>
+            <path d="M110 42 L122 22 L130 45 Z" fill="#0b0b0b" filter="url(#inkBlur)" opacity={alpha}/>
+            <ellipse cx="96" cy="63" rx="6" ry="7" fill="#fff" opacity=".95"/>
+            <ellipse cx="118" cy="64" rx="6" ry="7" fill="#fff" opacity=".95"/>
+          </svg>
+        )
+      }
+      const Smudge = ({ className="", alpha=.1 })=>(
+        <svg viewBox="0 0 200 120" className={className} aria-hidden>
+          <defs><filter id="sm" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"/></filter></defs>
+          <path d="M10,90 C25,20 80,5 110,38 C140,15 175,25 190,70 C140,75 120,95 100,110 C80,100 45,95 10,90 Z" fill="#0f0f0f" filter="url(#sm)" opacity={alpha}/>
+        </svg>
+      );
+
+      // =============== 유틸 & 저장소 ===============
+      const uid = ()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+      const DB='ovra_posts_v1';     // 글
+      const NICK='ovra_nick_v1';    // 닉
+      const TAGS='ovra_follow_tags';
+      const load=(k,def)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):def}catch(e){return def}};
+      const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+
+      // 태그 유틸
+      const TagKit={
+        STOP:new Set(["그리고","그래서","하지만","나는","오늘","지금","그냥","있다","없다","같다"]),
+        MAP:{"우울":"위로","행복":"기쁨","시험":"수능","공부":"공부","친구":"친구","연애":"연애","사랑":"연애","게임":"게임","그림":"그림","음악":"음악","학교":"학교","가족":"가족","운동":"운동","날씨":"날씨"},
+        tokenize:(t='')=>t.toLowerCase().replace(/[\n.,!?~\-()\[\]{}'";:]/g,' ').split(/\s+/).filter(Boolean),
+        suggest:(...texts)=>{
+          const words=texts.flatMap(TagKit.tokenize);
+          const cnt=new Map();
+          for(const w of words){ if(w.length<2||TagKit.STOP.has(w)) continue; const k=TagKit.MAP[w]||w; cnt.set(k,(cnt.get(k)||0)+1) }
+          return [...cnt.keys()].slice(0,5);
+        },
+        index:(posts)=>{
+          const m=new Map();
+          posts.forEach(p=>(p.tags||[]).forEach(t=>m.set(t,(m.get(t)||0)+1)));
+          return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+        },
+        followed:()=>load(TAGS,[]),
+        toggleFollow:(tag)=>{const s=new Set(TagKit.followed()); s.has(tag)?s.delete(tag):s.add(tag); save(TAGS,[...s]); return [...s];}
+      };
+
+      // =============== 작은 컴포넌트 ===============
+      const Toast = ({msg}) => <div className="card px-3 py-2 shadow-ink animate-fadeslide">{msg}</div>;
+
+      const TagChip = ({tag,active,onClick,following,onFollow,count})=>(
+        <button onClick={onClick}
+          className={"chip press-3d me-2 mb-2 " + (active?'!border-zinc-900 !text-zinc-900 dark:!border-zinc-100 dark:!text-zinc-100':'hover:border-zinc-400')}
+          title={count?`×${count}`:''}>
+          <span>#{tag}</span>
+          {following?.includes(tag)? <span className="text-[9px]">●</span>:null}
+          {onFollow && <span className="text-[10px] opacity-70 hover:opacity-100" onClick={(e)=>{e.stopPropagation(); onFollow(tag)}}>{following?.includes(tag)?'언팔':'팔로우'}</span>}
+        </button>
+      );
+
+      const Confirm=({open,text,onYes,onNo})=> open?(
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/20" onClick={onNo}></div>
+          <div className="absolute inset-0 m-auto max-w-sm h-fit p-4 card">
+            <p className="mb-4 text-sm text-[var(--muted)]">{text}</p>
+            <div className="flex justify-end gap-2">
+              <button className="btn-sub" onClick={onNo}>취소</button>
+              <button className="btn" style={{background:'#d93025'}} onClick={onYes}>확인</button>
+            </div>
+          </div>
+        </div>
+      ):null;
+
+      const Modal=({open,onClose,children})=> open?(
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/10" onClick={onClose}></div>
+          <div className="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-[84vh] max-h-[92vh] overflow-auto mx-2 md:mx-auto md:max-w-2xl card p-4">{children}</div>
+        </div>
+      ):null;
+
+      // =============== 카드/상세/작성 ===============
+      const PostCard=({post,me,onOpen,onQuote,onLike,onBookmark,onAuthor,onDelete,onReport,liked,bm})=>(
+        <article className="card overflow-hidden animate-fadeslide press-3d">
+          <div className="relative p-4">
+            <Smudge className="absolute -top-10 -right-6 w-40 pointer-events-none animate-float"/>
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+              <div className="h-8 w-8 rounded-full bg-white/60 dark:bg-black/20 border border-[var(--line)] flex items-center justify-center">{post.author[0]}</div>
+              <button className="hover:underline" onClick={()=>onAuthor(post.author)}>{post.author}</button>
+              <span>· {new Date(post.ts).toLocaleString()}</span>
+            </div>
+            <h3 className="mt-2 font-semibold">{post.title||"(제목 없음)"}</h3>
+            <p className="mt-1 leading-relaxed line-clamp-3">{post.body}</p>
+            {post.image && <img src={post.image} className="mt-3 rounded-xl border border-[var(--line)] max-h-96 object-contain w-full"/>}
+            {post.quoteOf && (
+              <div className="mt-3 p-3 rounded-xl border border-[var(--line)]">
+                <div className="text-[10px] text-[var(--muted)] mb-1">옴표</div>
+                <div className="text-sm font-semibold">{post.quoteOf.title}</div>
+                <div className="text-xs text-[var(--muted)]">{post.quoteOf.author}</div>
+                <div className="text-sm">{post.quoteOf.body}</div>
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">{post.tags.map(t=><TagChip key={t} tag={t}/>)}</div>
+          </div>
+          <div className="flex items-center justify-between border-t border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)]">
+            <div className="flex gap-4 items-center">
+              <button onClick={()=>onLike(post.id)} className={liked?"font-semibold text-[var(--ink)] dark:text-[var(--brand)]":""}>{liked?'♥':'♡'} {post.likes||0}</button>
+              <button onClick={()=>onOpen(post)}>댓글 {post.comments.length}</button>
+              <button onClick={()=>onQuote(post)}>옴표</button>
+              <button onClick={()=>onBookmark(post.id)} className={bm?"font-semibold text-[var(--ink)] dark:text-[var(--brand)]":""}>{bm?'🔖해제':'🔖북마크'}</button>
+            </div>
+            <div className="flex gap-3 items-center">
+              <button onClick={()=>onReport(post.id)}>신고{post.reports?`(${post.reports})`:''}</button>
+              {me===post.author && <button onClick={()=>onDelete(post.id)}>삭제</button>}
+            </div>
+          </div>
+        </article>
+      );
+
+      const PostDetail=({me,post,onClose,onAddComment,onDeleteComment,onQuote})=>{
+        const [txt,setTxt]=React.useState("");
+        const submit=()=>{if(!txt.trim()) return; onAddComment(post.id,txt); setTxt("")};
+        return (
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <button className="btn-sub" onClick={onClose}>닫기</button>
+              <h3 className="font-semibold">상세 보기</h3>
+            </div>
+            <div className="card p-4">
+              <div className="text-xs text-[var(--muted)] mb-1">{post.author} · {new Date(post.ts).toLocaleString()}</div>
+              <div className="font-semibold">{post.title}</div>
+              <p className="mt-1">{post.body}</p>
+              {post.image && <img src={post.image} className="mt-2 rounded-lg border border-[var(--line)] max-h-96 object-contain w-full"/>}
+              <div className="mt-2 flex gap-2 flex-wrap">{post.tags.map(t=> <TagChip key={t} tag={t}/>)}</div>
+              <div className="mt-3 text-sm text-[var(--muted)]"><button className="hover:underline" onClick={()=>onQuote(post)}>옴표</button></div>
+            </div>
+
+            <div className="mt-4 card p-4">
+              <div className="text-sm text-[var(--muted)] mb-2">댓글 {post.comments.length}</div>
+              <div className="space-y-3 max-h-56 overflow-auto pr-1">
+                {post.comments.map(c=> (
+                  <div key={c.id} className="p-3 rounded-xl border border-[var(--line)]">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-[var(--muted)]">{c.author} · {new Date(c.ts).toLocaleString()}</div>
+                      <div className="text-xs text-[var(--muted)] flex gap-2">
+                        {me===c.author && <button className="hover:underline" onClick={()=>onDeleteComment(post.id,c.id)}>삭제</button>}
+                        <button className="hover:underline" onClick={()=>alert('신고가 접수되었습니다 (데모)')}>신고</button>
+                      </div>
+                    </div>
+                    <div className="mt-1">{c.text}</div>
+                  </div>
+                ))}
+                {post.comments.length===0 && <div className="text-[var(--muted)] text-sm">아직 댓글이 없어요.</div>}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <input value={txt} onChange={e=>setTxt(e.target.value.slice(0,160))} placeholder="한 줄 댓글" className="flex-1 rounded-lg px-3 py-2 bg-transparent border border-[var(--line)] placeholder-[var(--muted)] outline-none"/>
+                <button className="btn" onClick={submit}>등록</button>
+              </div>
+            </div>
+          </div>
+        )
+      };
+
+      const Composer=({nick,tagIndex,quoteTarget,onCancelQuote,onPost})=>{
+        const [title,setTitle]=React.useState("");
+        const [body,setBody]=React.useState("");
+        const [tags,setTags]=React.useState([]);
+        const [tagInput,setTagInput]=React.useState("");
+        const [img,setImg]=React.useState(null);
+        const [suggest,setSuggest]=React.useState([]);
+
+        React.useEffect(()=>{ const s=TagKit.suggest(title,body,tagInput); setSuggest(s); setTags(prev=>prev.slice(0,5)); },[title,body,tagInput]);
+
+        const addTag=(t)=>{ if(!t) return; if(!tags.includes(t)) setTags([...tags,t]); setTagInput(""); };
+        const onFile=async(e)=>{const f=e.target.files?.[0]; if(!f) return; const url=URL.createObjectURL(f); setImg(url)};
+        const submit=()=>{ if(!title.trim()&&!body.trim()&&!img) return; onPost({title,body,tags,quoteTarget,image:img}); setTitle(""); setBody(""); setTags([]); setImg(null); setTagInput(""); };
+
+        return (
+          <div className="card p-4 animate-ink">
+            <div className="flex gap-3">
+              <div className="h-10 w-10 shrink-0 rounded-full bg-white/50 dark:bg-black/20 border border-[var(--line)] flex items-center justify-center">{nick[0]}</div>
+              <div className="flex-1">
+                <input value={title} onChange={e=>setTitle(e.target.value.slice(0,60))} placeholder="제목 (최대 60자)" className="w-full mb-2 rounded-lg px-3 py-2 bg-transparent border border-[var(--line)] outline-none placeholder-[var(--muted)]"/>
+                <textarea value={body} onChange={e=>setBody(e.target.value.slice(0,300))} placeholder="한두 줄로 적어보세요… (최대 300자)" className="w-full min-h-24 resize-y rounded-lg bg-transparent placeholder-[var(--muted)] p-3 outline-none border border-[var(--line)]"/>
+                {img && <img src={img} className="mt-2 rounded-lg border border-[var(--line)] max-h-72 object-contain"/>}
+
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  {tags.map(t=> <span key={t} className="chip">#{t} <button className="text-[10px]" onClick={()=>setTags(tags.filter(x=>x!==t))}>×</button></span>)}
+                  <div className="relative">
+                    <input value={tagInput} onChange={e=>setTagInput(e.target.value)} placeholder="#태그추가" className="rounded-lg px-2 py-1 bg-transparent border border-[var(--line)] outline-none"/>
+                    {/* 자동완성 */}
+                    {(tagInput || suggest.length>0) && (
+                      <div className="absolute z-10 mt-1 min-w-[10rem] card p-2 shadow-ink">
+                        {suggest.concat(tagIndex.map(([t])=>t)).filter((t,i,arr)=>arr.indexOf(t)===i).slice(0,8).map(t=>
+                          <button key={t} className="block w-full text-left text-sm px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/10" onClick={()=>addTag(t)}>#{t}</button>
+                        )}
+                        {suggest.length===0 && tagInput && <div className="px-2 py-1 text-xs text-[var(--muted)]">새 태그 추가: <button className="underline" onClick={()=>addTag(tagInput)}>{tagInput}</button></div>}
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="ml-auto text-xs cursor-pointer text-[var(--muted)] hover:underline">
+                    <input type="file" accept="image/*" className="hidden" onChange={onFile}/>이미지
+                  </label>
+                </div>
+
+                {quoteTarget && (
+                  <div className="mt-3 p-3 rounded-xl border border-[var(--line)]">
+                    <div className="text-[10px] text-[var(--muted)] mb-1">옴표 대상</div>
+                    <div className="font-semibold">{quoteTarget.title}</div>
+                    <div className="text-[var(--muted)] text-xs">{quoteTarget.author}</div>
+                    <div>{quoteTarget.body}</div>
+                    <button className="mt-2 text-xs text-[var(--muted)] underline" onClick={onCancelQuote}>옴표 취소</button>
+                  </div>
+                )}
+                <div className="mt-3 flex justify-end"><button className="btn" onClick={submit}>게시</button></div>
+              </div>
+            </div>
+          </div>
+        )
+      };
+
+      // =============== 헤더 ===============
+      const Header=({nick,onSearch,onNav,view,isDark,toggleDark,unread,toastsOpen,setToastsOpen,selectedTags,clearTags})=>(
+        <header className="sticky top-0 z-40 bg-[var(--paper)]/85 backdrop-blur border-b border-[var(--line)]">
+          <div className="relative mx-auto max-w-[1200px] px-4 py-3 flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="relative w-10 h-8">
+                <Smudge className="absolute -top-6 -left-2 w-20"/>
+                <InkCat className="absolute -top-5 -left-6 w-16" alpha={0.6}/>
+              </div>
+              <h1 className="text-lg font-extrabold tracking-wide">OVRA</h1>
+            </div>
+
+            {/* 반응형 검색창: 모바일에서 길이 제한 */}
+            <input onChange={e=>onSearch(e.target.value)} placeholder="검색…" className="ms-2 flex-1 w-28 sm:w-44 md:w-64 lg:w-80 xl:w-96 rounded-xl px-3 py-2 bg-transparent border border-[var(--line)] outline-none placeholder-[var(--muted)]"/>
+
+            <nav className="flex items-center gap-3 text-sm text-[var(--muted)] ms-2">
+              <button className={"hover:underline "+(view.mode==='feed'?"font-semibold text-[var(--text)]":"")} onClick={()=>onNav({mode:'feed'})}>피드</button>
+              <button className={"hover:underline "+(view.mode==='profile'&&view.who==='me'?"font-semibold text-[var(--text)]":"")} onClick={()=>onNav({mode:'profile',who:'me'})}>내 글</button>
+              <button className={"hover:underline "+(view.mode==='bookmarks'?"font-semibold text-[var(--text)]":"")} onClick={()=>onNav({mode:'bookmarks'})}>북마크</button>
+              <button className={"hover:underline "+(view.mode==='tags'?"font-semibold text-[var(--text)]":"")} onClick={()=>onNav({mode:'tags'})}>태그</button>
+            </nav>
+
+            <div className="ms-auto flex items-center gap-2">
+              {selectedTags.length>0 && <button className="btn-sub text-xs" onClick={clearTags}>태그 해제 ×{selectedTags.length}</button>}
+              <button className="btn-sub" onClick={toggleDark}>{isDark?'☀️':'🌙'}</button>
+              <button className="btn-sub" onClick={()=>setToastsOpen(v=>!v)}>🔔{unread>0?` ${unread}`:''}</button>
+              <span className="text-xs text-[var(--muted)]">{nick}</span>
+            </div>
+          </div>
+        </header>
+      );
+
+      // =============== 메인 앱 ===============
+      function App(){
+        // 상태
+        const [nick,setNick]=React.useState(load(NICK, randomNick()));
+        const [posts,setPosts]=React.useState(load(DB, []));
+        const [search,setSearch]=React.useState("");
+        const [quote,setQuote]=React.useState(null);
+        const [detail,setDetail]=React.useState(null);
+        const [view,setView]=React.useState({mode:'feed'});
+        const [visible,setVisible]=React.useState(6);
+        const [confirm,setConfirm]=React.useState({open:false,text:'',action:null});
+        const [follow,setFollow]=React.useState(TagKit.followed());
+        const [selectedTags,setSelectedTags]=React.useState([]); // 필터링용
+        const [isDark,setDark]=React.useState(document.documentElement.classList.contains('dark'));
+        const [toasts,setToasts]=React.useState([]); // 알림
+        const [toastsOpen,setToastsOpen]=React.useState(false);
+
+        // 저장
+        React.useEffect(()=>save(NICK,nick),[nick]);
+        React.useEffect(()=>save(DB,posts),[posts]);
+
+        // seed
+        React.useEffect(()=>{ if(posts.length===0){ setPosts([{id:uid(),title:'종이에 번지는 공지',body:'잉크가 말해요: 가볍게 적고, 가볍게 읽기.',tags:['공지','업데이트'],author:'시스템',ts:Date.now()-100000,likes:2,likedBy:[],bookmarkedBy:[],image:null,comments:[],reports:0}]) } },[]);
+
+        // 무한스크롤
+        React.useEffect(()=>{const f=()=>{if((window.innerHeight+window.scrollY)>=document.body.offsetHeight-200){setVisible(v=>Math.min(v+5, filtered().length))}};window.addEventListener('scroll',f);return()=>window.removeEventListener('scroll',f)},[posts,search,view,selectedTags]);
+
+        // 다른 탭과 동기화
+        React.useEffect(()=>{
+          const ch = ('BroadcastChannel' in window) ? new BroadcastChannel('ovra_ch') : null;
+          const sync = (e)=>{ if(e.key===DB){ setPosts(load(DB,[])) } if(e.key===NICK){ setNick(load(NICK,nick)) } if(e.key===TAGS){ setFollow(TagKit.followed()) } };
+          window.addEventListener('storage',sync);
+          ch?.addEventListener('message',msg=>{ if(msg.data==='update'){ setPosts(load(DB,[])) }});
+          return ()=>{ window.removeEventListener('storage',sync); ch?.close?.() }
+        },[]);
+
+        const toast=(m)=>{const id=uid(); setToasts(t=>[...t,{id,msg:m}]); setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3000)}
+
+        const toggleDark=()=>{document.documentElement.classList.toggle('dark'); setDark(d=>!d)}
+
+        const onNav=(v)=>{setView(v); setVisible(6); window.scrollTo({top:0})};
+
+        const push=({title,body,tags,quoteTarget,image})=>{
+          const base={id:uid(),title,body,tags,author:nick,ts:Date.now(),likes:0,likedBy:[],bookmarkedBy:[],image,comments:[],reports:0};
+          if(quoteTarget){base.quoteOf={id:quoteTarget.id,title:quoteTarget.title,author:quoteTarget.author,body:quoteTarget.body}}
+          setPosts([base,...posts]); setQuote(null); setVisible(6); window.scrollTo({top:0,behavior:'smooth'}); toast('게시 완료');
+          try{ new BroadcastChannel('ovra_ch').postMessage('update'); }catch{}
+        };
+        const addComment=(pid,text)=> setPosts(ps=>ps.map(p=> p.id===pid?{...p,comments:[...p.comments,{id:uid(),author:nick,text,ts:Date.now()}]}:p));
+        const deleteComment=(pid,cid)=> setPosts(ps=>ps.map(p=> p.id===pid?{...p,comments:p.comments.filter(c=>c.id!==cid)}:p));
+        const like=(id)=> setPosts(ps=>ps.map(p=>{ if(p.id!==id) return p; const mine=p.likedBy.includes(nick); const likedBy=mine?p.likedBy.filter(u=>u!==nick):[...p.likedBy,nick]; return {...p,likedBy,likes:mine?Math.max(0,p.likes-1):p.likes+1} }));
+        const bookmark=(id)=> setPosts(ps=>ps.map(p=> p.id===id?{...p,bookmarkedBy:p.bookmarkedBy.includes(nick)?p.bookmarkedBy.filter(u=>u!==nick):[...p.bookmarkedBy,nick]}:p));
+        const del=(id)=> setConfirm({open:true,text:'정말로 이 게시글을 삭제할까요?',action:()=>{setPosts(ps=>ps.filter(p=>p.id!==id)); setConfirm({open:false}); toast('삭제됨')}});
+        const report=(id)=> setPosts(ps=>ps.map(p=> p.id===id?{...p,reports:(p.reports||0)+1}:p));
+        const openAuthor=(author)=> onNav({mode:'profile',who:author===nick?'me':author});
+
+        // 필터링
+        function filtered(){
+          let list=posts.slice();
+          if(view.mode==='profile'){
+            const who = view.who==='me'?nick:view.who; list=list.filter(p=>p.author===who);
+          } else if(view.mode==='bookmarks'){
+            list=list.filter(p=>p.bookmarkedBy.includes(nick));
+          }
+          if(selectedTags.length>0){
+            list=list.filter(p=>p.tags.some(t=>selectedTags.includes(t)));
+          }
+          if(search.trim()){
+            const k=search.toLowerCase(); list=list.filter(p=> [p.title,p.body,p.author,...p.tags].join(' ').toLowerCase().includes(k));
+          }
+          return list;
+        }
+        const list=filtered();
+        const tagIndex=TagKit.index(posts);
+
+        const followToggle=(t)=>{const f=TagKit.toggleFollow(t); setFollow(f); toast(f.includes(t)?`#${t} 팔로우`:`#${t} 언팔`)}
+        const clearTags=()=>setSelectedTags([]);
+
+        return (
+          <div>
+            <Header
+              nick={nick}
+              onSearch={setSearch}
+              onNav={onNav}
+              view={view}
+              isDark={isDark}
+              toggleDark={toggleDark}
+              unread={0}
+              toastsOpen={true}
+              setToastsOpen={()=>{}}
+              selectedTags={selectedTags}
+              clearTags={clearTags}
+            />
+
+            {/* 배경 데코 */}
+            <div className="pointer-events-none fixed right-2 top-24 w-28 opacity-50"><InkCat mood={1} alpha={0.18}/></div>
+            <div className="pointer-events-none fixed left-0 bottom-10 w-40 opacity-40"><InkCat mood={3} alpha={0.12}/></div>
+
+            <main className="mx-auto max-w-[1200px] px-4 py-6 grid md:grid-cols-12 gap-6">
+              {/* 좌/작성 (데스크톱 고정) */}
+              <aside className="hidden md:block md:col-span-4 xl:col-span-3">
+                <div className="sticky top-20 space-y-4">
+                  <div className="card p-4">
+                    <div className="text-sm text-[var(--muted)]">안녕, <b>{nick}</b></div>
+                    <div className="mt-2 flex gap-2">
+                      <button className="btn-sub" onClick={()=>setNick(randomNick())}>닉네임 변경</button>
+                      <button className="btn-sub" onClick={()=>{const n=prompt('새 닉네임'); if(n){ setNick(n.trim().slice(0,20)) }}}>직접 설정</button>
+                    </div>
+                  </div>
+                  <Composer nick={nick} quoteTarget={quote} onCancelQuote={()=>setQuote(null)} onPost={push} tagIndex={tagIndex}/>
+                </div>
+              </aside>
+
+              {/* 본문 피드 */}
+              <section className="md:col-span-8 xl:col-span-6 space-y-6">
+                {/* 모바일 툴바/작성 */}
+                <div className="md:hidden flex items-center justify-between text-xs text-[var(--muted)]">
+                  <button className="btn-sub" onClick={()=>setNick(randomNick())}>닉네임 변경</button>
+                  {view.mode==='profile' && <span>프로필: {view.who==='me'?nick:view.who}</span>}
+                  {view.mode==='bookmarks' && <span>북마크</span>}
+                </div>
+                <div className="md:hidden"><Composer nick={nick} quoteTarget={quote} onCancelQuote={()=>setQuote(null)} onPost={push} tagIndex={tagIndex}/></div>
+
+                {/* 태그 패널(상단) */}
+                <div className="card p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold">트렌딩 태그</div>
+                    <div className="text-xs text-[var(--muted)]">팔로우한 태그는 ● 로 표시</div>
+                  </div>
+                  <div className="mt-2 -m-1">
+                    {tagIndex.slice(0,18).map(([t,c])=>(
+                      <TagChip key={t} tag={t} count={c}
+                        following={follow}
+                        active={selectedTags.includes(t)}
+                        onClick={()=>setSelectedTags(s=> s.includes(t)? s.filter(x=>x!==t) : [...s,t])}
+                        onFollow={followToggle}/>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 본문 카드들 */}
+                {list.length===0 && <div className="text-center text-[var(--muted)]">결과가 없어요.</div>}
+                <div className="space-y-5">
+                  {list.slice(0,visible).map(p=>(
+                    <PostCard key={p.id}
+                      post={p} me={nick}
+                      liked={p.likedBy.includes(nick)}
+                      bm={p.bookmarkedBy.includes(nick)}
+                      onOpen={setDetail}
+                      onQuote={setQuote}
+                      onLike={like}
+                      onBookmark={bookmark}
+                      onAuthor={openAuthor}
+                      onDelete={del}
+                      onReport={report}
+                    />
+                  ))}
+                </div>
+                {visible<list.length && <div className="text-center text-[var(--muted)]">스크롤하면 더 불러와요…</div>}
+              </section>
+
+              {/* 우측 패널 */}
+              <aside className="hidden xl:block xl:col-span-3 space-y-4">
+                <div className="card p-4 relative overflow-hidden">
+                  <Smudge className="absolute -top-10 -left-6 w-40"/>
+                  <div className="font-semibold">팔로우한 태그</div>
+                  <div className="mt-2 -m-1">
+                    {follow.length===0 && <div className="text-sm text-[var(--muted)]">아직 없어요. 태그 칩의 ‘팔로우’를 눌러보세요.</div>}
+                    {follow.map(t=>(
+                      <TagChip key={t} tag={t}
+                        active={selectedTags.includes(t)}
+                        onClick={()=>setSelectedTags(s=> s.includes(t)? s.filter(x=>x!==t) : [...s,t])}
+                        following={follow}
+                        onFollow={followToggle}/>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+            </main>
+
+            <footer className="mx-auto max-w-[1200px] px-4 py-10 text-center text-xs text-[var(--muted)]">© <script>document.write(new Date().getFullYear())</script> OVRA · ink & paper</footer>
+
+            {/* 상세 모달 */}
+            <Modal open={!!detail} onClose={()=>setDetail(null)}>
+              {detail && <PostDetail me={nick} post={detail} onClose={()=>setDetail(null)} onAddComment={addComment} onDeleteComment={deleteComment} onQuote={setQuote}/>}
+            </Modal>
+
+            {/* 확인 모달 */}
+            <Confirm open={confirm.open} text={confirm.text} onNo={()=>setConfirm({open:false})} onYes={()=>{confirm.action?.()}}/>
+
+            {/* 토스트(알림) */}
+            <div className="fixed right-4 bottom-4 space-y-2 z-50">{toasts.map(t=> <Toast key={t.id} msg={t.msg}/>)}</div>
+          </div>
+        );
+      }
+
+      // 랜덤 닉
+      function randomNick(){
+        const A=["서늘","묵향","잔향","안개","새벽","그믐","흑연","먹빛","연무","반점"];
+        const B=["고양이","수달","너구리","비둘기","제비","담비","도마뱀"];
+        return `${A[Math.floor(Math.random()*A.length)]}${B[Math.floor(Math.random()*B.length)]}#${Math.floor(100+Math.random()*900)}`;
+      }
+
+      const root=ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App/>);
+    </script>
+  </body>
+</html>
